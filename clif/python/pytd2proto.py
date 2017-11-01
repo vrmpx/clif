@@ -553,6 +553,12 @@ class Postprocessor(object):
     f = pb.func
     _set_name(f.name, _fix_special_names(ast.name), ns, allow_fqcppname=True)
     if ast.returns and ast.returns.asList() == [['', [['self']]]]:
+      if ast.self != 'self':
+        raise NameError('Method %s returning "self" must have "self" as the '
+                        'first argument.' % f.name.native)
+      if ast.postproc:
+        raise ValueError('Method %s returning "self" can\'t have '
+                         '"return Postprocess(...)"' % f.name.native)
       del ast['returns']
       return_self = True
     else:
@@ -604,16 +610,10 @@ class Postprocessor(object):
                         % f.name.cpp_name)
     elif f.name.native in _IGNORE_RETURN_VALUE:
       f.ignore_return_value = True
-      if f.name.native in _INPLACE_OPS:
-        if ast.self != 'self':
-          raise NameError('Inplace ops must have "self" as the first argument.')
-        if not return_self:
-          raise NameError('Inplace ops must return "self".')
-        if ast.postproc:
-          raise ValueError('Inplace ops can\'t have "return Postprocess(...)"')
-        f.postproc = '->self'  # '->' indicate special postprocessing.
-    if return_self and f.postproc != '->self':
-      raise ValueError('Only inplace ops can return "self".')
+      if f.name.native in _INPLACE_OPS and not return_self:
+        raise NameError('Inplace ops must return "self".')
+    if return_self:
+      f.postproc = '->self'  # '->' indicate special postprocessing.
     if ast.func_block:
       func_block = ast.func_block[0][0]
       if func_block.docstring:
